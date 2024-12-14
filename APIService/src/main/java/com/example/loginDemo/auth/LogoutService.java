@@ -1,10 +1,7 @@
 package com.example.loginDemo.auth;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -15,15 +12,13 @@ public class LogoutService {
 
     public void logout(String accessToken, String refreshToken) {
         try {
-            long accessTokenExpiration = jwtService.extractExpiration(accessToken).getTime() - System.currentTimeMillis();
-            long refreshTokenExpiration = jwtService.extractExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            long accessTokenExpiration = Math.max(jwtService.extractExpiration(accessToken).getTime() - System.currentTimeMillis(), 0);
+            long refreshTokenExpiration = Math.max(jwtService.extractExpiration(refreshToken).getTime() - System.currentTimeMillis(), 0);
 
             blacklistService.addToBlacklist(accessToken, accessTokenExpiration, "logout");
             blacklistService.addToBlacklist(refreshToken, refreshTokenExpiration, "logout");
         } catch (Exception e) {
-            System.err.println("Error during logout: " + e.getMessage());
-            e.printStackTrace();
+            throw new RuntimeException("Failed to blacklist tokens during logout: " + e.getMessage());
         }
     }
-
 }

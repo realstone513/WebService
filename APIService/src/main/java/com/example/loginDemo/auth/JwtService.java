@@ -3,7 +3,6 @@ package com.example.loginDemo.auth;
 import com.example.loginDemo.exception.ExpiredTokenException;
 import com.example.loginDemo.exception.InvalidTokenException;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -12,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.http.ResponseCookie;
 
 import java.security.Key;
 import java.util.Date;
@@ -29,7 +29,10 @@ public class JwtService {
     private final BlacklistService blacklistService;
 
     private static final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 60; // 1 hour
-    private static final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7; //7 days
+    private static final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7; // 7 days
+    public static final boolean REFRESH_TOKEN_HTTP_ONLY = true;
+    public static final boolean REFRESH_TOKEN_SECURE = true;
+    public static final String REFRESH_TOKEN_PATH = "/";
 
     public String extractUsername(String token) {
         try {
@@ -68,6 +71,15 @@ public class JwtService {
                 .compact();
     }
 
+    public ResponseCookie createRefreshTokenCookie(String refreshToken) {
+        return ResponseCookie.from("refreshToken", refreshToken)
+                .httpOnly(REFRESH_TOKEN_HTTP_ONLY)
+                .secure(REFRESH_TOKEN_SECURE)
+                .path(REFRESH_TOKEN_PATH)
+                .maxAge(REFRESH_TOKEN_EXPIRATION)
+                .build();
+    }
+
     public String generateRefreshToken(UserDetails userDetails, String role) {
         return generateRefreshToken(new HashMap<>(), userDetails, "refresh", role);
     }
@@ -90,7 +102,6 @@ public class JwtService {
                 .compact();
     }
 
-
     public boolean isTokenValid(String token, UserDetails userDetails) {
         if (isTokenExpired(token)) {
             return false;
@@ -102,7 +113,6 @@ public class JwtService {
         String username = extractUsername(token);
         return username.equals(userDetails.getUsername());
     }
-
 
     protected boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
@@ -127,5 +137,16 @@ public class JwtService {
 
     public boolean isTokenBlacklisted(String token) {
         return blacklistService.isTokenBlacklisted(token);
+    }
+
+    // Refresh Token 및 Access Token 유효성 검사 통합
+    public boolean isTokenExpiredOrBlacklisted(String token, String tokenType) {
+        if (isTokenExpired(token)) {
+            throw new ExpiredTokenException(tokenType + " token is expired");
+        }
+        if (isTokenBlacklisted(token)) {
+            throw new InvalidTokenException(tokenType + " token is blacklisted");
+        }
+        return false; // 유효한 토큰
     }
 }
