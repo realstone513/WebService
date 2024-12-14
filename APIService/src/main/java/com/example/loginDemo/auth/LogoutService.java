@@ -12,9 +12,17 @@ public class LogoutService {
 
     public void logout(String accessToken, String refreshToken) {
         try {
-            long accessTokenExpiration = Math.max(jwtService.extractExpiration(accessToken).getTime() - System.currentTimeMillis(), 0);
-            long refreshTokenExpiration = Math.max(jwtService.extractExpiration(refreshToken).getTime() - System.currentTimeMillis(), 0);
+            // Access Token 만료 시간 계산
+            long accessTokenExpiration = Math.max(
+                    jwtService.extractExpiration(accessToken).getTime() - System.currentTimeMillis(), 0
+            );
 
+            // Refresh Token 만료 시간 계산
+            long refreshTokenExpiration = Math.max(
+                    jwtService.extractExpiration(refreshToken).getTime() - System.currentTimeMillis(), 0
+            );
+
+            // 블랙리스트에 추가
             blacklistService.addToBlacklist(accessToken, accessTokenExpiration, "logout");
             blacklistService.addToBlacklist(refreshToken, refreshTokenExpiration, "logout");
         } catch (Exception e) {

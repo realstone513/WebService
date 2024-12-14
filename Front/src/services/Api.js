@@ -1,6 +1,6 @@
 // src/services/Api.js
 import axios from 'axios';
-import { getAccessToken, refreshAccessToken } from './TokenManager';
+import { getAccessToken, initializeAccessToken } from './TokenManager';
 
 export const api = axios.create({
   baseURL: 'http://localhost:8080/api',
@@ -19,29 +19,26 @@ export const getAuthHeaders = () => {
   };
 };
 
-// Axios 응답 인터셉터 - Access Token 갱신 로직
+// 응답 인터셉터
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    console.log('응답 interceptor 진입: ', error.response?.status);
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      console.warn('Access Token 만료 감지, 갱신 시도 중'); // 로그 추가
+      console.warn("Access Token 만료 감지. 갱신 시도");
       originalRequest._retry = true;
 
       try {
-        const newToken = await refreshAccessToken(api);
-        console.log('Access Token 갱신 성공:', newToken);
+        const newToken = await initializeAccessToken(api);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        console.error('Access Token 갱신 시도 실패:', refreshError.message);
+        console.error("Access Token 갱신 실패:", refreshError.message);
         return Promise.reject(refreshError);
       }
     }
-    // 다른 모든 에러 처리
-    console.error('API 요청 에러:', error.message);
+
     return Promise.reject(error);
   }
 );

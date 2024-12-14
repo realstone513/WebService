@@ -27,9 +27,14 @@ export const login = async (email, password) => {
 // 로그아웃 API
 export const logout = async () => {
   try {
-    console.log('로그아웃 요청 시작');
-    const response = await api.post('/auth/logout', {}, { headers: getAuthHeaders() });
-    console.log('로그아웃 성공:', response.data.message);
+    const response = await api.post(
+      '/auth/logout',
+      {},
+      {
+        headers: getAuthHeaders(), // Authorization 헤더 포함
+        withCredentials: true,    // 쿠키 포함
+      }
+    );
     clearAccessToken();
     return { success: true, message: response.data.message };
   } catch (error) {
@@ -37,6 +42,7 @@ export const logout = async () => {
     return { success: false, message: handleApiError(error, '로그아웃 요청이 실패했습니다.').message };
   }
 };
+
 
 // 회원탈퇴 API
 export const deleteAccount = async () => {

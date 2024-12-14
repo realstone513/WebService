@@ -28,30 +28,40 @@ public class AuthController {
 
     //로그인
     @PostMapping("/authenticate")
-    public ResponseEntity<AuthenticationResponse> authenticate(@RequestBody AuthenticationRequest request){
-        return ResponseEntity.ok(authService.authenticate(request));
+    public ResponseEntity<AuthenticationResponse> authenticate(@RequestBody AuthenticationRequest request) {
+        AuthenticationResponse authResponse = authService.authenticate(request);
+        ResponseCookie refreshCookie = jwtService.createRefreshTokenCookie(authResponse.getRefreshToken());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .body((AuthenticationResponse) Map.of("accessToken", authResponse.getAccessToken()));
     }
 
     // 로그아웃
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestHeader("Authorization") String accessToken,
-                                    @CookieValue(name = "refreshToken", required = false) String refreshToken) {
+    public ResponseEntity<?> logout(
+            @RequestHeader(name = "Authorization", required = false) String accessToken,
+            @CookieValue(name = "refreshToken", required = false) String refreshToken) {
         if (refreshToken == null) {
-            return ResponseEntity.status(400).body(Map.of(
-                    "message", "Refresh Token is missing in cookies"
-            ));
+            return ResponseEntity.status(400).body(Map.of("message", "Refresh Token is missing"));
         }
 
+        if (accessToken == null || !accessToken.startsWith("Bearer ")) {
+            return ResponseEntity.status(400).body(Map.of("message", "Access Token is missing or invalid"));
+        }
+
+        // Access Token에서 'Bearer ' 제거
+        accessToken = accessToken.substring(7);
+
         try {
-            accessToken = extractToken(accessToken);
+            // 로그아웃 처리
             logoutService.logout(accessToken, refreshToken);
-            return ResponseEntity.ok("Successfully logged out");
+            return ResponseEntity.ok(Map.of("message", "Successfully logged out"));
         } catch (Exception e) {
-            return ResponseEntity.status(400).body(Map.of(
-                    "message", "Logout failed: " + e.getMessage()
-            ));
+            return ResponseEntity.status(500).body(Map.of("message", "Logout failed: " + e.getMessage()));
         }
     }
+
 
     //회원 탈퇴
     @DeleteMapping("/delete-account")
@@ -67,21 +77,24 @@ public class AuthController {
 
     //access token 갱신
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, String>> refreshAccessToken(@RequestBody Map<String, String> request) {
-        String refreshToken = request.get("refreshToken");
+    public ResponseEntity<?> refreshAccessToken(@CookieValue(name = "refreshToken", required = false) String refreshToken) {
+        if (refreshToken == null) {
+            return ResponseEntity.status(400).body(Map.of("message", "Refresh Token is missing"));
+        }
 
-        //만료된 refresh token의 경우
+        // Refresh Token 검증
         jwtService.isTokenExpiredOrBlacklisted(refreshToken, "refresh");
 
+        // 사용자 정보 추출
         String userEmail = jwtService.extractUsername(refreshToken);
         UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
+        // 새로운 Access Token 및 Refresh Token 생성
         String newAccessToken = jwtService.generateAccessToken(userDetails, userDetails.getAuthorities().toString());
         String newRefreshToken = jwtService.generateRefreshToken(userDetails, userDetails.getAuthorities().toString());
-
-        // JwtService를 사용하여 Refresh Token 쿠키 생성
         ResponseCookie refreshCookie = jwtService.createRefreshTokenCookie(newRefreshToken);
 
+        // Access Token 반환 및 새로운 Refresh Token을 쿠키로 전달
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                 .body(Map.of("accessToken", newAccessToken));
@@ -92,7 +105,4 @@ public class AuthController {
     private String extractToken(String token) {
         return token.substring(7); // Assuming "Bearer " prefix
     }
-
-
-
 }

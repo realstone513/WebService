@@ -30,9 +30,6 @@ public class JwtService {
 
     private static final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 60; // 1 hour
     private static final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7; // 7 days
-    public static final boolean REFRESH_TOKEN_HTTP_ONLY = true;
-    public static final boolean REFRESH_TOKEN_SECURE = true;
-    public static final String REFRESH_TOKEN_PATH = "/";
 
     public String extractUsername(String token) {
         try {
@@ -73,9 +70,10 @@ public class JwtService {
 
     public ResponseCookie createRefreshTokenCookie(String refreshToken) {
         return ResponseCookie.from("refreshToken", refreshToken)
-                .httpOnly(REFRESH_TOKEN_HTTP_ONLY)
-                .secure(REFRESH_TOKEN_SECURE)
-                .path(REFRESH_TOKEN_PATH)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict") // CSRF 방어
+                .path("/")
                 .maxAge(REFRESH_TOKEN_EXPIRATION)
                 .build();
     }
